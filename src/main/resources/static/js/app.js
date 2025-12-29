@@ -1,0 +1,660 @@
+// 오목 게임 전역 변수
+let board = null; // 15x15 보드 배열 (0: 빈 칸, 1: 흑, 2: 백)
+let currentTurn = 'b'; // 'b' (흑) 또는 'w' (백)
+let userId = null;
+let userName = null;
+let movesCount = 0;
+let nudgeTimer = null;
+let gameMode = 'single'; // 'single' 또는 'multi'
+let isGameOver = false;
+let winner = null;
+
+// 멀티플레이어 관련 변수 (multiplayer.js에서 사용)
+let roomId = null;
+let stompClient = null;
+let myColor = 'b'; // 'b' (흑) 또는 'w' (백)
+let isHost = false;
+let opponentName = 'AI';
+let lastSentBoardState = null;
+
+// 싱글플레이어 관련 변수 (single-player.js에서 사용)
+let currentDifficulty = 1; // 0: 쉬움, 1: 보통, 2: 어려움, 3: 마스터
+
+// 음성 출력 관리 변수
+let lastSpokenText = "";
+let lastSpokenTime = 0;
+
+// 음성 출력 함수
+function speak(text) {
+    if (typeof speechSynthesis === 'undefined' || !text) return;
+    
+    const now = Date.now();
+    if (text === lastSpokenText && (now - lastSpokenTime) < 1000) return;
+    
+    lastSpokenText = text;
+    lastSpokenTime = now;
+
+    speechSynthesis.cancel();
+    
+    setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = speechSynthesis.getVoices();
+        
+        const preferredVoice = voices.find(v => v.lang === 'ko-KR' && (v.name.includes('Google') || v.name.includes('Natural'))) ||
+                               voices.find(v => v.lang === 'ko-KR' && v.name.includes('Heami')) ||
+                               voices.find(v => v.lang === 'ko-KR');
+
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.1;
+        speechSynthesis.speak(utterance);
+    }, 50);
+}
+
+// 보드 상태를 JSON 문자열로 변환
+function boardToJson(board, turn) {
+    return JSON.stringify({ board: board, turn: turn });
+}
+
+// JSON 문자열을 보드 배열로 파싱
+function parseBoard(jsonStr) {
+    try {
+        const data = JSON.parse(jsonStr);
+        return data.board || createEmptyBoard();
+    } catch (e) {
+        console.error('Error parsing board:', e);
+        return createEmptyBoard();
+    }
+}
+
+// 빈 보드 생성
+function createEmptyBoard() {
+    const board = [];
+    for (let i = 0; i < 15; i++) {
+        board[i] = [];
+        for (let j = 0; j < 15; j++) {
+            board[i][j] = 0;
+        }
+    }
+    return board;
+}
+
+// 오목 보드 초기화
+function initBoard() {
+    board = createEmptyBoard();
+    currentTurn = 'b';
+    isGameOver = false;
+    winner = null;
+    movesCount = 0;
+    
+    const boardElement = $('#omok-board');
+    boardElement.empty();
+    
+    for (let row = 0; row < 15; row++) {
+        for (let col = 0; col < 15; col++) {
+            const cell = $('<div>').addClass('omok-cell')
+                .attr('data-row', row)
+                .attr('data-col', col)
+                .on('click', function() {
+                    if (isGameOver) return;
+                    const r = parseInt($(this).attr('data-row'));
+                    const c = parseInt($(this).attr('data-col'));
+                    handleCellClick(r, c);
+                });
+            boardElement.append(cell);
+        }
+    }
+    
+    updateStatus();
+    $('#btn-new-game').hide();
+    $('#btn-nudge').hide();
+    $('#btn-voice-message').hide();
+}
+
+// 셀 클릭 처리
+function handleCellClick(row, col) {
+    if (isGameOver || board[row][col] !== 0) return;
+    
+    // 차례 확인
+    if (gameMode === 'multi') {
+        // 멀티플레이어: 내 색상과 현재 차례가 일치해야 함
+        if (currentTurn !== myColor) {
+            alert('아직 당신의 차례가 아닙니다!');
+            return;
+        }
+    } else {
+        // 싱글 모드: 사용자는 흑(b), AI는 백(w)
+        if (currentTurn !== 'b') return;
+    }
+    
+    if (gameMode === 'multi') {
+        // 멀티플레이어: 서버로 수 전송 (서버 응답 후 보드 업데이트)
+        sendMoveToServer(row, col);
+        return; // 서버 응답을 기다림
+    }
+    
+    // 싱글플레이어: 로컬에서 수 두기
+    const player = currentTurn === 'b' ? 1 : 2;
+    board[row][col] = player;
+    renderBoard();
+    
+    movesCount++;
+    if (typeof stopNudgeTimer === 'function') {
+        stopNudgeTimer();
+    }
+    
+    // 승리 확인
+    if (checkWinner(row, col, player)) {
+        isGameOver = true;
+        winner = currentTurn;
+        updateStatus();
+        checkGameOver();
+        return;
+    }
+    
+    // 차례 변경 후 AI 수 두기
+    currentTurn = currentTurn === 'b' ? 'w' : 'b';
+    updateStatus();
+    setTimeout(() => makeAIMove(), 500);
+}
+
+// 보드 렌더링
+function renderBoard() {
+    $('.omok-cell').each(function() {
+        const row = parseInt($(this).attr('data-row'));
+        const col = parseInt($(this).attr('data-col'));
+        const cellValue = board[row][col];
+        
+        $(this).empty();
+        if (cellValue === 1) {
+            $(this).append($('<div>').addClass('omok-stone black'));
+        } else if (cellValue === 2) {
+            $(this).append($('<div>').addClass('omok-stone white'));
+        }
+    });
+}
+
+// 승리 판정 (5목 확인)
+function checkWinner(row, col, player) {
+    const directions = [
+        [0, 1],   // 가로
+        [1, 0],   // 세로
+        [1, 1],   // 대각선 \
+        [1, -1]   // 대각선 /
+    ];
+    
+    for (let dir of directions) {
+        let count = 1; // 현재 위치 포함
+        
+        // 정방향
+        for (let i = 1; i < 5; i++) {
+            const newRow = row + dir[0] * i;
+            const newCol = col + dir[1] * i;
+            if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+            if (board[newRow][newCol] !== player) break;
+            count++;
+        }
+        
+        // 역방향
+        for (let i = 1; i < 5; i++) {
+            const newRow = row - dir[0] * i;
+            const newCol = col - dir[1] * i;
+            if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+            if (board[newRow][newCol] !== player) break;
+            count++;
+        }
+        
+        if (count >= 5) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// 보드 전체에서 승자 확인 (멀티플레이어용)
+function checkWinnerFromBoard(boardToCheck) {
+    const directions = [
+        [0, 1],   // 가로
+        [1, 0],   // 세로
+        [1, 1],   // 대각선 \
+        [1, -1]   // 대각선 /
+    ];
+    
+    for (let i = 0; i < 15; i++) {
+        for (let j = 0; j < 15; j++) {
+            if (boardToCheck[i][j] === 0) continue;
+            
+            const player = boardToCheck[i][j];
+            
+            for (let dir of directions) {
+                let count = 1;
+                
+                // 정방향
+                for (let k = 1; k < 5; k++) {
+                    const newRow = i + dir[0] * k;
+                    const newCol = j + dir[1] * k;
+                    if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+                    if (boardToCheck[newRow][newCol] !== player) break;
+                    count++;
+                }
+                
+                // 역방향
+                for (let k = 1; k < 5; k++) {
+                    const newRow = i - dir[0] * k;
+                    const newCol = j - dir[1] * k;
+                    if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+                    if (boardToCheck[newRow][newCol] !== player) break;
+                    count++;
+                }
+                
+                if (count >= 5) {
+                    return player; // 1 또는 2 반환
+                }
+            }
+        }
+    }
+    
+    return 0; // 승자 없음
+}
+
+// 상태 업데이트
+function updateStatus() {
+    if (isGameOver) {
+        let statusText = '';
+        if (winner === 'b') {
+            statusText = '게임 종료! 흑색 승리! 🎉';
+        } else if (winner === 'w') {
+            statusText = '게임 종료! 백색 승리! 🎉';
+        } else {
+            statusText = '게임 종료! 무승부.';
+        }
+        $('#game-status').text(statusText);
+    } else {
+        const turnText = currentTurn === 'b' ? '흑색' : '백색';
+        $('#game-status').text(turnText + ' 차례');
+    }
+    
+    if (gameMode === 'multi') {
+        if (currentTurn === myColor && !isGameOver) {
+            $('#ai-message').text('당신의 차례입니다. 멋진 수를 보여주세요! 😊');
+            $('#btn-nudge').hide();
+            $('#btn-voice-message').hide();
+        } else if (!isGameOver) {
+            $('#ai-message').text('상대방이 생각 중입니다... ⏳');
+            $('#btn-nudge').show();
+            const VOICE_PERMISSION_KEY = 'voicePermissionAllowed';
+            const voicePermissionAllowed = localStorage.getItem(VOICE_PERMISSION_KEY) === 'true';
+            if (typeof isSpeechRecognitionSupported === 'function' && isSpeechRecognitionSupported() && voicePermissionAllowed) {
+                $('#btn-voice-message').show();
+            } else {
+                $('#btn-voice-message').hide();
+            }
+        }
+    } else {
+        if (currentTurn === 'b' && !isGameOver) {
+            $('#ai-message').text('어디로 두면 좋을까? 천천히 생각해보렴!');
+        }
+        $('#btn-nudge').hide();
+        $('#btn-voice-message').hide();
+    }
+    
+    if (isGameOver) {
+        $('#btn-nudge').hide();
+        $('#btn-voice-message').hide();
+    }
+}
+
+// 게임 종료 처리
+function checkGameOver() {
+    if (!isGameOver) return false;
+    
+    let message = '';
+    let result = 'DRAW';
+    
+    if (winner) {
+        if (gameMode === 'multi') {
+            if (winner === myColor) {
+                message = '승리했습니다! 🎉';
+                result = 'WIN';
+            } else {
+                message = '패배했습니다.';
+                result = 'LOSS';
+            }
+        } else {
+            if (winner === 'b') {
+                message = '승리했습니다! 🎉';
+                result = 'WIN';
+            } else {
+                message = '패배했습니다.';
+                result = 'LOSS';
+            }
+        }
+    } else {
+        message = '게임 종료! 무승부입니다.';
+        result = 'DRAW';
+    }
+    
+    $('#ai-message').text(message);
+    speak(message);
+    
+    let currentOpponentName = 'AI';
+    if (gameMode === 'multi' && opponentName && opponentName !== 'AI' && opponentName !== '상대방') {
+        currentOpponentName = opponentName;
+    }
+    
+    if (!userId) {
+        console.error('Cannot save game history: userId is null');
+        alert('게임 종료! 하지만 기록을 저장할 수 없습니다. (사용자 정보 없음)');
+        return true;
+    }
+    
+    $.ajax({
+        url: '/api/history/' + userId,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ result: result, movesCount: movesCount, opponentName: currentOpponentName, gameType: 'OMOK' }),
+        success: function() {
+            alert('게임 종료! 결과가 저장되었습니다.');
+            if (result === 'WIN' || result === 'DRAW') {
+                $('#btn-new-game').show();
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Failed to save game history:', error);
+            alert('게임 종료! 하지만 기록 저장에 실패했습니다.');
+        }
+    });
+    return true;
+}
+
+// 보드 상태 업데이트 (서버에서 받은 상태로)
+function updateBoardFromState(boardStateJson, turn) {
+    if (!boardStateJson) return;
+    
+    board = parseBoard(boardStateJson);
+    currentTurn = turn;
+    renderBoard();
+    updateStatus();
+}
+
+$(document).ready(function() {
+    // 대기방 목록 HTML 로드
+    $('#waiting-rooms-placeholder').load('/waiting-rooms.html', function() {
+        const VOICE_PERMISSION_KEY = 'voicePermissionAllowed';
+        const voicePermissionCheckbox = $('#voice-permission-checkbox');
+        
+        const savedVoicePermission = localStorage.getItem(VOICE_PERMISSION_KEY);
+        if (savedVoicePermission === 'true') {
+            voicePermissionCheckbox.prop('checked', true);
+        }
+        
+        voicePermissionCheckbox.on('change', function() {
+            const isChecked = $(this).is(':checked');
+            localStorage.setItem(VOICE_PERMISSION_KEY, isChecked ? 'true' : 'false');
+            
+            if (isChecked && gameMode === 'multi' && typeof initSpeechRecognition === 'function') {
+                initSpeechRecognition();
+            } else if (!isChecked) {
+                $('#btn-voice-message').hide();
+            }
+        });
+    });
+
+    $('#btn-new-game').hide();
+    
+    const savedName = localStorage.getItem('omok_username');
+    if (savedName) $('#username').val(savedName);
+
+    const savedDiff = localStorage.getItem('omok_difficulty');
+    if (savedDiff !== null) {
+        $('#difficulty').val(savedDiff);
+        currentDifficulty = parseInt(savedDiff);
+    }
+
+    // 모드 버튼 이벤트 핸들러
+    function setupModeButtons() {
+        $('.mode-btn').off('click').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            $('.mode-btn').css('background', '#fff');
+            $(this).css('background', '#ffeb99');
+            
+            if ($(this).attr('id') === 'btn-single-mode') {
+                gameMode = 'single';
+                $('#single-mode-options').show();
+                $('#btn-start').show();
+                $('#btn-create-room').hide();
+            } else {
+                gameMode = 'multi';
+                $('#single-mode-options').hide();
+                $('#btn-start').hide();
+                $('#btn-create-room').hide();
+                
+                const name = $('#username').val();
+                if (!name) {
+                    alert('이름을 입력해주세요!');
+                    $('#btn-single-mode').trigger('click');
+                    return;
+                }
+                
+                $.ajax({
+                    url: '/api/login',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ name: name }),
+                    success: function(user) {
+                        userId = user.id;
+                        userName = user.name;
+                        localStorage.setItem('omok_username', name);
+                        
+                        $('#login-container').hide();
+                        $('#waiting-rooms-container').show();
+                        loadWaitingRooms();
+                        
+                        if (window.roomRefreshInterval) clearInterval(window.roomRefreshInterval);
+                        window.roomRefreshInterval = setInterval(loadWaitingRooms, 5000);
+                    },
+                    error: function() {
+                        alert('로그인에 실패했습니다. 다시 시도해주세요.');
+                        $('#btn-single-mode').trigger('click');
+                    }
+                });
+            }
+        });
+    }
+    
+    setupModeButtons();
+    
+    // 초기 상태: 혼자하기 모드 선택
+    gameMode = 'single';
+    $('#single-mode-options').show();
+    $('#btn-start').show();
+    $('#btn-create-room').hide();
+    $('#btn-single-mode').css('background', '#ffeb99');
+    $('#btn-multi-mode').css('background', '#fff');
+
+    $('#btn-start').on('click', function() {
+        const name = $('#username').val();
+        if (!name) { alert('이름을 입력해주세요!'); return; }
+        
+        currentDifficulty = parseInt($('#difficulty').val());
+        localStorage.setItem('omok_username', name);
+        localStorage.setItem('omok_difficulty', currentDifficulty);
+
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) docEl.requestFullscreen();
+
+        $.ajax({
+            url: '/api/login',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ name: name }),
+            success: function(user) {
+                userId = user.id;
+                userName = user.name;
+                $('#login-container').hide();
+                $('#game-container').show();
+                initBoard();
+                
+                const welcome = `안녕, ${userName}야! 나는 너의 오목 친구야. 우리 재미있게 놀아보자!`;
+                $('#ai-message').text(welcome);
+                speak(welcome);
+                
+                if (typeof startNudgeTimer === 'function') {
+                    startNudgeTimer();
+                }
+            }
+        });
+    });
+
+    // 대기하기 화면 관련 이벤트
+    $(document).on('click', '#btn-back-to-login', function() {
+        if (window.roomRefreshInterval) {
+            clearInterval(window.roomRefreshInterval);
+            window.roomRefreshInterval = null;
+        }
+        $('#waiting-rooms-container').hide();
+        $('#login-container').show();
+    });
+    
+    $(document).on('click', '#btn-refresh-rooms', function() {
+        loadWaitingRooms();
+    });
+    
+    $(document).on('click', '#btn-create-new-room', function() {
+        if (!userId) { alert('먼저 이름을 입력하고 같이하기를 선택해주세요.'); return; }
+        createRoom();
+    });
+
+    $('#btn-logout').on('click', () => {
+        if (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) {
+            stompClient.disconnect();
+        }
+        location.reload();
+    });
+
+    $('#btn-history').on('click', () => {
+        if (!userId) return;
+        $.ajax({
+            url: '/api/history/' + userId,
+            method: 'GET',
+            success: function(history) {
+                const tbody = $('#history-table tbody').empty();
+                history.forEach(h => {
+                    const res = h.result === 'WIN' ? '승리 🏆' : h.result === 'LOSS' ? '패배' : '무승부';
+                    const opponent = h.opponentName || 'AI';
+                    
+                    // 날짜 포맷팅 (안전한 처리)
+                    let dateStr = '알 수 없음';
+                    if (h.playedAt) {
+                        try {
+                            let date;
+                            // 배열 형식 [year, month, day, hour, minute, second, nano] 처리
+                            if (Array.isArray(h.playedAt)) {
+                                const [year, month, day, hour, minute, second] = h.playedAt;
+                                date = new Date(year, month - 1, day, hour, minute, second || 0);
+                            } else if (typeof h.playedAt === 'string') {
+                                date = new Date(h.playedAt);
+                            } else {
+                                date = new Date(h.playedAt);
+                            }
+                            
+                            if (!isNaN(date.getTime())) {
+                                dateStr = date.toLocaleString('ko-KR', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse date:', h.playedAt, e);
+                        }
+                    }
+                    
+                    tbody.append(`<tr><td>${dateStr}</td><td>${res}</td><td>${opponent}</td><td>${h.movesCount}</td></tr>`);
+                });
+                $('#history-modal').show();
+            }
+        });
+    });
+    
+    $('#btn-new-game').on('click', () => {
+        board = createEmptyBoard();
+        currentTurn = 'b';
+        isGameOver = false;
+        winner = null;
+        movesCount = 0;
+        if (typeof lastSentBoardState !== 'undefined') lastSentBoardState = null;
+        $('#btn-new-game').hide();
+        
+        if (gameMode === 'multi') {
+            if (stompClient && stompClient.connected && roomId) {
+                const headers = { userId: userId.toString() };
+                const emptyBoard = boardToJson(createEmptyBoard(), 'b');
+                
+                const isRematch = opponentName && opponentName !== '상대방' && opponentName !== 'AI';
+                const nextStatus = isRematch ? 'PLAYING' : 'WAITING';
+                const nextMessage = isRematch ? '재경기를 시작합니다! 즐거운 게임 되세요.' : '새 게임을 시작합니다! 상대방을 기다려주세요...';
+
+                if (!isRematch) {
+                    opponentName = '상대방';
+                }
+
+                stompClient.send('/app/game/' + roomId + '/state', headers, JSON.stringify({
+                    boardState: emptyBoard,
+                    turn: 'b',
+                    status: nextStatus,
+                    isGameOver: false,
+                    winner: null,
+                    message: nextMessage
+                }));
+            }
+            
+            initBoard();
+            speak('새 게임을 시작합니다!');
+        } else {
+            initBoard();
+            $('#ai-message').text('새 게임을 시작합니다!');
+            speak('새 게임을 시작합니다!');
+            if (typeof startNudgeTimer === 'function') {
+                startNudgeTimer();
+            }
+        }
+    });
+    
+    // 재촉하기 버튼 클릭 이벤트
+    $('#btn-nudge').on('click', function() {
+        if (gameMode === 'multi' && typeof sendNudgeToServer === 'function') {
+            sendNudgeToServer();
+        }
+    });
+    
+    // 말하기 버튼 이벤트 핸들러
+    const btnVoiceMessage = $('#btn-voice-message');
+    
+    btnVoiceMessage.on('mousedown touchstart', function(e) {
+        e.preventDefault();
+        if (gameMode === 'multi' && recognition && !isRecording) {
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error('Failed to start recognition:', err);
+            }
+        }
+    });
+    
+    btnVoiceMessage.on('mouseup touchend mouseleave', function(e) {
+        e.preventDefault();
+        if (recognition && isRecording) {
+            recognition.stop();
+        }
+    });
+    
+    $('.close').on('click', () => $('#history-modal').hide());
+});
+

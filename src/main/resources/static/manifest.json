@@ -1,0 +1,20 @@
+{
+  "name": "꼬마 오목 선생님",
+  "short_name": "꼬마오목",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f8ff",
+  "theme_color": "#4a90e2",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/png?seed=OmokBot&size=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/png?seed=OmokBot&size=512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

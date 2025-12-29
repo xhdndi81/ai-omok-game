@@ -1,0 +1,538 @@
+html, body {
+    height: 100%;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Nanum Gothic', sans-serif;
+    background-color: #f0f8ff;
+    color: #333;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100dvh;
+}
+
+/* Login Container */
+.container {
+    background-color: white;
+    padding: 30px 20px;
+    border-radius: 25px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    text-align: center;
+    width: 90%;
+    max-width: 380px;
+}
+
+h1 {
+    color: #4a90e2;
+    font-family: 'Jua', sans-serif;
+    font-size: 2.5rem;
+    margin-top: 0;
+}
+
+input[type="text"] {
+    padding: 12px 15px;
+    font-size: 1.1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    width: 85%;
+    font-family: 'Nanum Gothic', sans-serif;
+    text-align: center;
+}
+
+button {
+    background-color: #ffcc00;
+    border: none;
+    padding: 12px 25px;
+    font-size: 1.2rem;
+    font-family: 'Jua', sans-serif;
+    border-radius: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #e6b800;
+    transition: all 0.1s;
+}
+
+button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #e6b800;
+}
+
+.creator-info {
+    margin-top: 30px;
+    font-size: 1rem;
+    color: #999;
+    border-top: 1px dashed #eee;
+    padding-top: 20px;
+}
+
+/* Game View Layout */
+#game-container {
+    width: 100vw;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Top Navigation (Portrait) */
+.top-nav {
+    display: flex;
+    flex-shrink: 0;
+    padding: 8px 15px;
+    background-color: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    align-items: flex-start;
+    justify-content: space-between;
+    height: auto; /* 높이를 내용에 맞게 유동적으로 */
+    min-height: 80px;
+    box-sizing: border-box;
+    z-index: 100;
+    overflow: visible;
+}
+
+.ai-chat-area {
+    flex: 1;
+    min-width: 0;
+    max-width: calc(100% - 200px); /* 버튼 영역을 위한 공간 확보 */
+}
+
+.ai-character {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#ai-img {
+    width: 45px;
+    height: 45px;
+    background-color: #eee;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.speech-bubble {
+    position: relative;
+    background: #fff9c4;
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 1rem;
+    line-height: 1.4;
+    box-shadow: 1px 1px 5px rgba(0,0,0,0.05);
+    text-align: left;
+    white-space: normal;
+    word-break: keep-all;
+    max-height: none;
+    overflow-y: visible;
+    font-weight: 500;
+}
+
+.speech-bubble:after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 0;
+    height: 0;
+    border: 6px solid transparent;
+    border-right-color: #fff9c4;
+    border-left: 0;
+    margin-top: -6px;
+    margin-left: -6px;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    margin-left: 12px;
+    flex-shrink: 0;
+    min-width: 180px; /* 버튼 영역 최소 너비 확보 */
+    max-width: 200px; /* 버튼 영역 최대 너비 제한 */
+}
+
+.status-container {
+    background-color: #e3f2fd;
+    padding: 4px 10px;
+    border-radius: 8px;
+}
+
+#game-status {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1976d2;
+    white-space: nowrap;
+}
+
+.game-creator {
+    font-size: 0.7rem;
+    color: #bbb;
+    margin-top: 2px;
+}
+
+.nav-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+    max-width: 100%;
+}
+
+.nav-controls button {
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    box-shadow: none;
+    font-family: 'Nanum Gothic', sans-serif;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    flex: 0 0 calc(50% - 3px);
+    max-width: calc(50% - 3px);
+    justify-content: center;
+}
+
+#btn-nudge {
+    background-color: #ff9800 !important;
+    color: white !important;
+}
+
+#btn-voice-message {
+    background-color: #4caf50 !important;
+    color: white !important;
+}
+
+#btn-voice-message.recording {
+    background-color: #f44336 !important;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+#btn-nudge:disabled {
+    background-color: #ccc !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Main Content Area */
+.main-content {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    overflow: hidden;
+}
+
+.board-section {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Omok Board Styles */
+#omok-board {
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    grid-template-rows: repeat(15, 1fr);
+    gap: 0;
+    width: min(90vw, 90vh - 150px);
+    height: min(90vw, 90vh - 150px);
+    background-color: #deb887;
+    border: 3px solid #8b4513;
+    box-sizing: border-box;
+    padding: 5px;
+    touch-action: none;
+}
+
+.omok-cell {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
+    background-color: transparent;
+    border: 1px solid rgba(139, 69, 19, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.omok-cell:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.omok-stone {
+    width: 85%;
+    height: 85%;
+    border-radius: 50%;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.omok-stone.black {
+    background: radial-gradient(circle at 30% 30%, #666, #000);
+}
+
+.omok-stone.white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+}
+
+/* Mobile Portrait Mode - Small screens */
+@media (max-width: 480px) and (orientation: portrait) {
+    .top-nav {
+        padding: 8px 10px;
+        flex-wrap: nowrap;
+    }
+    
+    .ai-chat-area {
+        flex: 1;
+        min-width: 0;
+        max-width: calc(100% - 160px);
+    }
+    
+    .header-right {
+        flex-shrink: 0;
+        min-width: 150px;
+        max-width: 160px;
+        margin-left: 8px;
+        align-items: flex-end;
+    }
+    
+    .nav-controls {
+        gap: 5px;
+        width: 100%;
+        max-width: 160px;
+    }
+    
+    .nav-controls button {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+        flex: 0 0 calc(50% - 2.5px);
+        max-width: calc(50% - 2.5px);
+    }
+    
+    .speech-bubble {
+        font-size: 0.9rem;
+        padding: 6px 10px;
+    }
+    
+    #ai-img {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .status-container {
+        font-size: 0.85rem;
+        padding: 3px 8px;
+    }
+    
+    #omok-board {
+        width: min(95vw, 95vh - 120px);
+        height: min(95vw, 95vh - 120px);
+    }
+}
+
+/* Portrait Mode - All sizes */
+@media (orientation: portrait) {
+    .top-nav {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+    }
+    
+    .ai-chat-area {
+        flex: 1;
+        min-width: 0;
+        max-width: calc(100% - 200px);
+    }
+    
+    .header-right {
+        flex-shrink: 0;
+        min-width: 180px;
+        max-width: 200px;
+        margin-left: 12px;
+        align-items: flex-end;
+    }
+    
+    .nav-controls {
+        gap: 6px;
+        justify-content: flex-end;
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .nav-controls button {
+        flex: 0 0 calc(50% - 3px);
+        max-width: calc(50% - 3px);
+        justify-content: center;
+    }
+}
+
+/* Landscape Mode Adjustments */
+@media (orientation: landscape) {
+    #game-container {
+        flex-direction: row;
+    }
+
+    .top-nav {
+        width: 200px;
+        height: 100%;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 20px 15px;
+        border-right: 2px solid #f0f0f0;
+        border-bottom: none;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    }
+
+    .ai-chat-area {
+        margin-bottom: 20px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .ai-character {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    #ai-img {
+        width: 60px;
+        height: 60px;
+    }
+
+    .speech-bubble {
+        max-height: 180px;
+        margin-top: 10px;
+        font-size: 1.1rem;
+    }
+
+    .speech-bubble:after {
+        border-right-color: transparent;
+        border-bottom-color: #fff9c4;
+        top: -12px;
+        left: 50%;
+        margin-left: -6px;
+        border-left: 6px solid transparent;
+    }
+
+    .header-right {
+        width: 100%;
+        margin-left: 0;
+        margin-top: auto;
+        align-items: center;
+    }
+
+    .status-container {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    #game-status {
+        font-size: 1.1rem;
+    }
+
+    .nav-controls {
+        width: 100%;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    
+    .nav-controls button {
+        flex: 0 0 calc(50% - 4px);
+        max-width: calc(50% - 4px);
+        justify-content: center;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+    }
+
+    #omok-board {
+        width: min(calc(100vh - 40px), calc(100vw - 250px));
+        height: min(calc(100vh - 40px), calc(100vw - 250px));
+    }
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 10vh auto;
+    padding: 25px;
+    border-radius: 25px;
+    width: 85%;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    font-family: 'Nanum Gothic', sans-serif;
+}
+
+.modal-content h2 {
+    font-family: 'Jua', sans-serif;
+    color: #4a90e2;
+    margin-top: 0;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#history-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+#history-table th, #history-table td {
+    padding: 10px;
+    font-size: 1rem;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+#history-table th {
+    background-color: #f8f9fa;
+    color: #666;
+    font-weight: 700;
+}
+

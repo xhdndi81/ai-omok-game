@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 최신 표준 모바일 웹 앱 태그 -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- iOS 호환성 유지용 태그 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="data:,"> <!-- Favicon 404 방지 -->
+    <title>꼬마 오목 선생님 - AI와 함께하는 오목 여행</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="login-container" class="container">
+        <h1>⚫⚪ 꼬마 오목 선생님</h1>
+        <p>친구의 이름을 알려주세요!</p>
+        <input type="text" id="username" placeholder="이름을 입력하세요">
+        
+        <div style="margin-bottom: 20px;">
+            <p style="margin-bottom: 10px;">게임 모드를 선택하세요!</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
+                <button id="btn-single-mode" class="mode-btn" style="flex: 1; padding: 12px; font-size: 1.1rem; border-radius: 10px; border: 2px solid #ffcc00; background: #fff; cursor: pointer;">혼자하기</button>
+                <button id="btn-multi-mode" class="mode-btn" style="flex: 1; padding: 12px; font-size: 1.1rem; border-radius: 10px; border: 2px solid #ffcc00; background: #fff; cursor: pointer;">같이하기</button>
+            </div>
+        </div>
+        
+        <div id="single-mode-options" style="margin-bottom: 20px;">
+            <p style="margin-bottom: 10px;">난이도를 골라보세요!</p>
+            <select id="difficulty" style="padding: 8px 15px; font-family: 'Gaegu', cursive; font-size: 1.1rem; border-radius: 10px; border: 2px solid #ffcc00; width: 85%;">
+                <option value="0">🌱 쉬움 (처음이에요)</option>
+                <option value="1" selected>🌟 보통 (조금 할 줄 알아요)</option>
+                <option value="2">🔥 어려움 (자신 있어요!)</option>
+                <option value="3">👑 마스터 (최고의 실력자!)</option>
+            </select>
+        </div>
+        
+        <button id="btn-start" style="display: none;">게임 시작하기!</button>
+        
+        <div class="creator-info">
+            제작: 소희, 선우 아빠 ❤️
+        </div>
+    </div>
+
+    <div id="waiting-rooms-placeholder"></div>
+
+    <div id="game-container" style="display: none;">
+        <div class="top-nav">
+            <div class="ai-chat-area">
+                <div class="ai-character">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=OmokBot" alt="AI Teacher" id="ai-img">
+                    <div class="speech-bubble">
+                        <p id="ai-message">안녕! 나는 너의 오목 친구야. 같이 재미있게 놀아보자!</p>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="status-container">
+                    <p id="game-status">흑색 차례</p>
+                </div>
+                <div class="nav-controls">
+                    <button id="btn-new-game" title="새 게임 시작하기" style="display: none; background-color: #4a90e2; color: white;">🎮 새 게임</button>
+                    <button id="btn-voice-message" title="말하기" style="display: none;">🎤 말하기</button>
+                    <button id="btn-nudge" title="재촉하기" style="display: none;">⚡ 재촉하기</button>
+                    <button id="btn-history" title="내 기록 보기">🏆 기록</button>
+                    <button id="btn-logout" title="나가기">🚪 나가기</button>
+                </div>
+                <div class="game-creator">소희, 선우 아빠 ❤️</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="board-section">
+                <div id="omok-board"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>내 오목 기록 🏆</h2>
+            <div id="history-table-container">
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>결과</th>
+                            <th>상대방</th>
+                            <th>수</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/omok-ai.js"></script>
+    <script src="/js/single-player.js"></script>
+    <script src="/js/multiplayer.js"></script>
+</body>
+</html>
+

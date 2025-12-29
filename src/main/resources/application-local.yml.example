@@ -1,0 +1,14 @@
+# 로컬 개발 환경 설정 예시 파일
+# 이 파일을 복사하여 application-local.yml로 이름을 변경하고 실제 값들을 입력하세요.
+
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/your-database-schema
+    username: your-database-username
+    password: your-database-password
+
+openai:
+  api:
+    key: your-actual-openai-api-key-here
+    url: https://api.openai.com/v1/chat/completions
+
