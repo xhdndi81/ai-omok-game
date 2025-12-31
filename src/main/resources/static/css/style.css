@@ -90,6 +90,7 @@ button:active {
     justify-content: space-between;
     height: auto; /* 높이를 내용에 맞게 유동적으로 */
     min-height: 80px;
+    max-height: 200px; /* 최대 높이 제한으로 게임판 크기 안정화 */
     box-sizing: border-box;
     z-index: 100;
     overflow: visible;
@@ -242,6 +243,8 @@ button:active {
     align-items: center;
     padding: 0;
     overflow: hidden;
+    min-height: 0;
+    flex-shrink: 1;
 }
 
 .board-section {
@@ -252,6 +255,8 @@ button:active {
     justify-content: center;
     align-items: center;
     gap: 5px;
+    flex-shrink: 0;
+    min-height: 0;
 }
 
 /* Omok Board Styles */
@@ -260,13 +265,14 @@ button:active {
     grid-template-columns: repeat(15, 1fr);
     grid-template-rows: repeat(15, 1fr);
     gap: 0;
-    width: min(90vw, 90vh - 150px);
-    height: min(90vw, 90vh - 150px);
+    width: min(90vw, calc(100vh - 200px));
+    height: min(90vw, calc(100vh - 200px));
     background-color: #deb887;
     border: 3px solid #8b4513;
     box-sizing: border-box;
     padding: 5px;
     touch-action: none;
+    flex-shrink: 0;
 }
 
 .omok-cell {
@@ -353,8 +359,8 @@ button:active {
     }
     
     #omok-board {
-        width: min(95vw, 95vh - 120px);
-        height: min(95vw, 95vh - 120px);
+        width: min(95vw, calc(100vh - 180px));
+        height: min(95vw, calc(100vh - 180px));
     }
 }
 
@@ -476,6 +482,7 @@ button:active {
     #omok-board {
         width: min(calc(100vh - 40px), calc(100vw - 250px));
         height: min(calc(100vh - 40px), calc(100vw - 250px));
+        flex-shrink: 0;
     }
 }
 
