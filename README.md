@@ -76,7 +76,7 @@ openai:
 ### 방법 2: 환경 변수로 설정
 
 환경 변수로 설정:
-- `DATASOURCE_URL`: 예) `jdbc:mariadb://localhost:3306/games`
+- `DATASOURCE_URL`: 예) `jdbc:mariadb://localhost:3306/your-database-schema`
 - `DATASOURCE_USERNAME`: 데이터베이스 사용자명
 - `DATASOURCE_PASSWORD`: 데이터베이스 비밀번호
 - `OPENAI_API_KEY`: OpenAI API 키
