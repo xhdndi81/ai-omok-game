@@ -1,21 +1,55 @@
 // 혼자하기(AI) 관련 로직 (변수는 app.js에 정의됨)
 
-// 사용자를 재촉하는 함수
+// 사용자를 재촉하는 함수 (AI API 사용)
 function startNudgeTimer() {
     stopNudgeTimer();
     nudgeTimer = setTimeout(() => {
         if (currentTurn === 'b' && !isGameOver) {
-            const nudges = [
-                "어디로 둘지 결정했니? 😊",
-                `${userName}야, 천천히 생각해도 돼!`,
-                "선생님은 기다리고 있어!",
-                `${userName}야, 어떤 전략을 세우고 있니?`,
-                "선생님은 준비 다 됐어! 천천히 해봐~"
-            ];
-            const ment = nudges[Math.floor(Math.random() * nudges.length)];
-            $('#ai-message').text(ment);
-            speak(ment);
-            startNudgeTimer();
+            // AI API로 재촉 메시지 생성
+            if (typeof isUpdatingAiMessage !== 'undefined' && isUpdatingAiMessage) {
+                // 이미 다른 메시지 업데이트 중이면 재촉 메시지 건너뛰기
+                startNudgeTimer();
+                return;
+            }
+            
+            if (typeof isUpdatingAiMessage !== 'undefined') {
+                isUpdatingAiMessage = true;
+            }
+            
+            const boardStateJson = boardToJson(board, currentTurn);
+            $.ajax({
+                url: '/api/ai/comment?situation=nudge',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    boardState: boardStateJson,
+                    turn: currentTurn,
+                    userName: userName,
+                    difficulty: currentDifficulty
+                }),
+                success: function(response) {
+                    if (response.comment) {
+                        if (typeof updateAiMessage === 'function') {
+                            updateAiMessage(response.comment, true); // 강제 업데이트
+                        } else {
+                            $('#ai-message').text(response.comment);
+                        }
+                        speak(response.comment);
+                    }
+                    if (typeof isUpdatingAiMessage !== 'undefined') {
+                        isUpdatingAiMessage = false;
+                    }
+                    startNudgeTimer();
+                },
+                error: function() {
+                    // 실패 시에도 플래그 해제하고 재촉 타이머 재시작
+                    if (typeof isUpdatingAiMessage !== 'undefined') {
+                        isUpdatingAiMessage = false;
+                    }
+                    // 실패 시 메시지는 표시하지 않음 (AI API만 사용)
+                    startNudgeTimer();
+                }
+            });
         }
     }, 30000);
 }
@@ -31,7 +65,8 @@ function makeAIMove() {
     if (isGameOver || currentTurn !== 'w') return;
     
     stopNudgeTimer();
-    $('#ai-message').text('음... 어디로 두면 좋을까? 🤔');
+    
+    // 고정 메시지 제거 - AI API 응답만 사용
     
     // 1. 클라이언트 JS에서 즉시 수 계산
     const aiMove = omokAI.getNextMove(board, 2, currentDifficulty);
@@ -50,16 +85,18 @@ function makeAIMove() {
             winner = 'w';
             updateStatus();
             checkGameOver();
-            // 승리했어도 마지막 멘트는 요청
+            return; // 게임 종료 시 checkGameOver에서 메시지 처리
         }
         
         // 차례 변경
-        if (!isGameOver) {
-            currentTurn = 'b';
-            updateStatus();
-        }
+        currentTurn = 'b';
+        updateStatus();
 
         // 3. 서버에는 '멘트'만 요청 (비동기)
+        if (typeof isUpdatingAiMessage !== 'undefined') {
+            isUpdatingAiMessage = true;
+        }
+        
         const boardStateJson = boardToJson(board, currentTurn);
         $.ajax({
             url: '/api/ai/move',
@@ -74,13 +111,23 @@ function makeAIMove() {
             }),
             success: function(response) {
                 if (response.comment) {
-                    $('#ai-message').text(response.comment);
+                    if (typeof updateAiMessage === 'function') {
+                        updateAiMessage(response.comment, true); // 강제 업데이트
+                    } else {
+                        $('#ai-message').text(response.comment);
+                    }
                     speak(response.comment);
+                }
+                if (typeof isUpdatingAiMessage !== 'undefined') {
+                    isUpdatingAiMessage = false;
                 }
                 if (!isGameOver) startNudgeTimer();
             },
             error: function() {
                 console.error('AI comment request failed');
+                if (typeof isUpdatingAiMessage !== 'undefined') {
+                    isUpdatingAiMessage = false;
+                }
                 if (!isGameOver) startNudgeTimer();
             }
         });
@@ -124,7 +171,11 @@ function makeRandomMove() {
             "선생님도 집중하고 있어요!"
         ];
         const ment = casualMents[Math.floor(Math.random() * casualMents.length)];
-        $('#ai-message').text(ment);
+        if (typeof updateAiMessage === 'function') {
+            updateAiMessage(ment);
+        } else {
+            $('#ai-message').text(ment);
+        }
         speak(ment);
         
         startNudgeTimer();

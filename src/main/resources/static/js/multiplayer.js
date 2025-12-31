@@ -113,7 +113,11 @@ function initSpeechRecognition() {
         console.warn('Speech Recognition requires HTTPS. Current protocol:', window.location.protocol);
         $('#btn-voice-message').hide();
         if (gameMode === 'multi') {
-            $('#ai-message').text('⚠️ 음성 메시지 기능은 HTTPS에서만 사용할 수 있습니다. 서버에 SSL 인증서를 설정해주세요.');
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage('⚠️ 음성 메시지 기능은 HTTPS에서만 사용할 수 있습니다. 서버에 SSL 인증서를 설정해주세요.');
+            } else {
+                $('#ai-message').text('⚠️ 음성 메시지 기능은 HTTPS에서만 사용할 수 있습니다. 서버에 SSL 인증서를 설정해주세요.');
+            }
         }
         return;
     }
@@ -154,7 +158,11 @@ function initSpeechRecognition() {
         }
         
         if (interimTranscript) {
-            $('#ai-message').text('🎤 ' + interimTranscript);
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage('🎤 ' + interimTranscript);
+            } else {
+                $('#ai-message').text('🎤 ' + interimTranscript);
+            }
         }
     };
     
@@ -169,7 +177,9 @@ function initSpeechRecognition() {
             errorMsg = '음성이 감지되지 않았습니다.';
         } else if (event.error === 'not-allowed') {
             errorMsg = '마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.';
-            $('#ai-message').text(errorMsg);
+        }
+        if (typeof updateAiMessage === 'function') {
+            updateAiMessage(errorMsg);
         } else {
             $('#ai-message').text(errorMsg);
         }
@@ -182,9 +192,17 @@ function initSpeechRecognition() {
         
         if (finalTranscript.trim()) {
             sendVoiceMessageToServer(finalTranscript.trim());
-            $('#ai-message').text('메시지를 전송했습니다: ' + finalTranscript.trim());
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage('메시지를 전송했습니다: ' + finalTranscript.trim());
+            } else {
+                $('#ai-message').text('메시지를 전송했습니다: ' + finalTranscript.trim());
+            }
         } else {
-            $('#ai-message').text('음성이 감지되지 않았습니다.');
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage('음성이 감지되지 않았습니다.');
+            } else {
+                $('#ai-message').text('음성이 감지되지 않았습니다.');
+            }
         }
     };
 }
@@ -293,10 +311,18 @@ function handleGameStateUpdate(gameState) {
         if (isVoiceMessage) {
             const senderName = isHost ? gameState.guestName : gameState.hostName;
             const displayMessage = senderName ? `${senderName}: ${gameState.message}` : gameState.message;
-            $('#ai-message').text(displayMessage);
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage(displayMessage);
+            } else {
+                $('#ai-message').text(displayMessage);
+            }
             speak(gameState.message);
         } else {
-            $('#ai-message').text(gameState.message);
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage(gameState.message);
+            } else {
+                $('#ai-message').text(gameState.message);
+            }
             
             if (isNudgeMessage) {
                 speak(gameState.message);
@@ -400,7 +426,11 @@ function handleGameStateUpdate(gameState) {
         }
         
         if (message) {
-            $('#ai-message').text(message);
+            if (typeof updateAiMessage === 'function') {
+                updateAiMessage(message);
+            } else {
+                $('#ai-message').text(message);
+            }
             speak(message);
         }
         
@@ -541,6 +571,9 @@ function createRoom() {
                     $('#game-container').show();
                     
                     initBoard();
+                    if (typeof adjustLandscapeLayout === 'function') {
+                        adjustLandscapeLayout();
+                    }
                     connectWebSocket(roomId);
                     
                     if (typeof initSpeechRecognition === 'function') {
@@ -548,7 +581,11 @@ function createRoom() {
                     }
                     
                     setTimeout(() => {
-                        $('#ai-message').text('방을 만들었어요! 상대방이 들어올 때까지 기다려주세요...');
+                        if (typeof updateAiMessage === 'function') {
+                            updateAiMessage('방을 만들었어요! 상대방이 들어올 때까지 기다려주세요...');
+                        } else {
+                            $('#ai-message').text('방을 만들었어요! 상대방이 들어올 때까지 기다려주세요...');
+                        }
                     }, 500);
                 },
                 error: function() {
@@ -591,6 +628,10 @@ function joinRoom(targetRoomId) {
                     $('#login-container').hide();
                     $('#game-container').show();
                     
+                    if (typeof adjustLandscapeLayout === 'function') {
+                        adjustLandscapeLayout();
+                    }
+                    
                     if (gameState.boardState) {
                         updateBoardFromState(gameState.boardState, gameState.turn);
                     }
@@ -604,7 +645,11 @@ function joinRoom(targetRoomId) {
                     
                     setTimeout(() => {
                         const message = `${gameState.hostName}님과의 게임이 시작되었습니다!`;
-                        $('#ai-message').text(message);
+                        if (typeof updateAiMessage === 'function') {
+                            updateAiMessage(message);
+                        } else {
+                            $('#ai-message').text(message);
+                        }
                         speak(message);
                     }, 500);
                 },

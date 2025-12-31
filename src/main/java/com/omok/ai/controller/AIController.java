@@ -40,5 +40,11 @@ public class AIController {
         
         return response;
     }
+
+    @PostMapping("/comment")
+    public AIResponse getComment(@RequestBody AIRequest request, @RequestParam(required = false) String situation) {
+        // 다양한 상황에 맞는 코멘트 생성
+        return aiService.generateComment(request, null, situation);
+    }
 }
 

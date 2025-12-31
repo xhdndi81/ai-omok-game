@@ -153,10 +153,41 @@ function handleCellClick(row, col) {
         return;
     }
     
+    // 사용자가 수를 둔 후 AI 피드백 요청
+    isUpdatingAiMessage = true;
+    const boardStateJson = boardToJson(board, currentTurn);
+    $.ajax({
+        url: '/api/ai/comment?situation=player_move',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            boardState: boardStateJson,
+            turn: currentTurn,
+            userName: userName,
+            difficulty: currentDifficulty
+        }),
+        success: function(response) {
+            if (response.comment) {
+                if (typeof updateAiMessage === 'function') {
+                    updateAiMessage(response.comment, true); // 강제 업데이트
+                } else {
+                    $('#ai-message').text(response.comment);
+                }
+                speak(response.comment);
+            }
+            isUpdatingAiMessage = false;
+        },
+        error: function() {
+            // 실패 시에도 플래그 해제
+            isUpdatingAiMessage = false;
+            // 실패 시 기본 메시지는 표시하지 않음 (AI API만 사용)
+        }
+    });
+    
     // 차례 변경 후 AI 수 두기
     currentTurn = currentTurn === 'b' ? 'w' : 'b';
     updateStatus();
-    setTimeout(() => makeAIMove(), 500);
+    setTimeout(() => makeAIMove(), 1000);
 }
 
 // 보드 렌더링
@@ -259,6 +290,41 @@ function checkWinnerFromBoard(boardToCheck) {
     return 0; // 승자 없음
 }
 
+// AI 메시지 업데이트 중 플래그 (중복 방지)
+let isUpdatingAiMessage = false;
+
+// AI 메시지 업데이트 함수 (스타일 유지)
+function updateAiMessage(message, forceUpdate = false) {
+    // AI API 호출 중이고 강제 업데이트가 아니면 무시
+    if (isUpdatingAiMessage && !forceUpdate) {
+        return;
+    }
+    
+    $('#ai-message').text(message);
+    
+    // 메시지가 업데이트되면 하단으로 스크롤
+    const speechBubble = document.querySelector('.speech-bubble');
+    if (speechBubble) {
+        setTimeout(() => {
+            speechBubble.scrollTop = speechBubble.scrollHeight;
+        }, 50);
+    }
+}
+
+// 가로 모드 레이아웃 조정
+function adjustLandscapeLayout() {
+    // CSS 미디어 쿼리가 대부분의 작업을 수행하므로
+    // 여기서는 최소한의 동적 조정만 수행
+    const speechBubble = document.querySelector('.speech-bubble');
+    
+    if (speechBubble) {
+        // 메시지 영역 스크롤을 하단으로
+        setTimeout(() => {
+            speechBubble.scrollTop = speechBubble.scrollHeight;
+        }, 100);
+    }
+}
+
 // 상태 업데이트
 function updateStatus() {
     if (isGameOver) {
@@ -278,11 +344,12 @@ function updateStatus() {
     
     if (gameMode === 'multi') {
         if (currentTurn === myColor && !isGameOver) {
-            $('#ai-message').text('당신의 차례입니다. 멋진 수를 보여주세요! 😊');
+            // 멀티플레이어는 고정 메시지 유지
+            updateAiMessage('당신의 차례입니다. 멋진 수를 보여주세요! 😊');
             $('#btn-nudge').hide();
             $('#btn-voice-message').hide();
         } else if (!isGameOver) {
-            $('#ai-message').text('상대방이 생각 중입니다... ⏳');
+            updateAiMessage('상대방이 생각 중입니다... ⏳');
             $('#btn-nudge').show();
             const VOICE_PERMISSION_KEY = 'voicePermissionAllowed';
             const voicePermissionAllowed = localStorage.getItem(VOICE_PERMISSION_KEY) === 'true';
@@ -293,8 +360,11 @@ function updateStatus() {
             }
         }
     } else {
+        // 싱글플레이어 모드: 사용자 차례일 때는 간단한 메시지만 표시
+        // 실제 AI 대화는 사용자가 수를 둔 후에 진행됨
         if (currentTurn === 'b' && !isGameOver) {
-            $('#ai-message').text('어디로 두면 좋을까? 천천히 생각해보렴!');
+            // updateStatus는 자주 호출되므로 여기서는 AI API 호출하지 않음
+            // 대신 간단한 메시지만 표시 (사용자가 수를 두면 handleCellClick에서 AI 피드백 제공)
         }
         $('#btn-nudge').hide();
         $('#btn-voice-message').hide();
@@ -310,34 +380,87 @@ function updateStatus() {
 function checkGameOver() {
     if (!isGameOver) return false;
     
-    let message = '';
     let result = 'DRAW';
     
     if (winner) {
         if (gameMode === 'multi') {
             if (winner === myColor) {
-                message = '승리했습니다! 🎉';
                 result = 'WIN';
             } else {
-                message = '패배했습니다.';
                 result = 'LOSS';
             }
         } else {
             if (winner === 'b') {
-                message = '승리했습니다! 🎉';
                 result = 'WIN';
             } else {
-                message = '패배했습니다.';
                 result = 'LOSS';
             }
         }
     } else {
-        message = '게임 종료! 무승부입니다.';
         result = 'DRAW';
     }
     
-    $('#ai-message').text(message);
-    speak(message);
+    // AI API로 게임 종료 메시지 생성
+    if (gameMode === 'single') {
+        isUpdatingAiMessage = true;
+        const boardStateJson = boardToJson(board, currentTurn);
+        $.ajax({
+            url: '/api/ai/comment?situation=game_over',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                boardState: boardStateJson,
+                turn: currentTurn,
+                userName: userName,
+                difficulty: currentDifficulty
+            }),
+            success: function(response) {
+                if (response.comment) {
+                    updateAiMessage(response.comment, true); // 강제 업데이트
+                    speak(response.comment);
+                } else {
+                    // Fallback 메시지
+                    let fallbackMessage = '';
+                    if (result === 'WIN') {
+                        fallbackMessage = '승리했습니다! 🎉';
+                    } else if (result === 'LOSS') {
+                        fallbackMessage = '패배했습니다.';
+                    } else {
+                        fallbackMessage = '게임 종료! 무승부입니다.';
+                    }
+                    updateAiMessage(fallbackMessage, true);
+                    speak(fallbackMessage);
+                }
+                isUpdatingAiMessage = false;
+            },
+            error: function() {
+                // Fallback 메시지
+                let fallbackMessage = '';
+                if (result === 'WIN') {
+                    fallbackMessage = '승리했습니다! 🎉';
+                } else if (result === 'LOSS') {
+                    fallbackMessage = '패배했습니다.';
+                } else {
+                    fallbackMessage = '게임 종료! 무승부입니다.';
+                }
+                updateAiMessage(fallbackMessage, true);
+                speak(fallbackMessage);
+                isUpdatingAiMessage = false;
+            }
+        });
+    } else {
+        // 멀티플레이어는 기존 방식 유지
+        let message = '';
+        if (result === 'WIN') {
+            message = '승리했습니다! 🎉';
+        } else if (result === 'LOSS') {
+            message = '패배했습니다.';
+        } else {
+            message = '게임 종료! 무승부입니다.';
+        }
+        updateAiMessage(message, true);
+        speak(message);
+    }
     
     let currentOpponentName = 'AI';
     if (gameMode === 'multi' && opponentName && opponentName !== 'AI' && opponentName !== '상대방') {
@@ -499,12 +622,52 @@ $(document).ready(function() {
                 $('#game-container').show();
                 initBoard();
                 
-                const welcome = `안녕, ${userName}야! 나는 너의 오목 친구야. 우리 재미있게 놀아보자!`;
-                $('#ai-message').text(welcome);
-                speak(welcome);
+                // 레이아웃 조정
+                setTimeout(adjustLandscapeLayout, 100);
+                
+                // AI API로 환영 메시지 생성
+                isUpdatingAiMessage = true;
+                const emptyBoardJson = boardToJson(createEmptyBoard(), 'b');
+                $.ajax({
+                    url: '/api/ai/comment?situation=welcome',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        boardState: emptyBoardJson,
+                        turn: 'b',
+                        userName: userName,
+                        difficulty: currentDifficulty
+                    }),
+                    success: function(response) {
+                        if (response.comment) {
+                            updateAiMessage(response.comment, true); // 강제 업데이트
+                            speak(response.comment);
+                        } else {
+                            const fallbackWelcome = '안녕! 나는 너의 오목 친구야. 우리 재미있게 놀아보자!';
+                            updateAiMessage(fallbackWelcome, true);
+                            speak(fallbackWelcome);
+                        }
+                        isUpdatingAiMessage = false;
+                    },
+                    error: function() {
+                        const fallbackWelcome = '안녕! 나는 너의 오목 친구야. 우리 재미있게 놀아보자!';
+                        updateAiMessage(fallbackWelcome, true);
+                        speak(fallbackWelcome);
+                        isUpdatingAiMessage = false;
+                    }
+                });
                 
                 if (typeof startNudgeTimer === 'function') {
                     startNudgeTimer();
+                }
+                
+                // 메시지가 길어질 때 자동 스크롤
+                const speechBubble = document.querySelector('.speech-bubble');
+                if (speechBubble) {
+                    const observer = new MutationObserver(() => {
+                        speechBubble.scrollTop = speechBubble.scrollHeight;
+                    });
+                    observer.observe(speechBubble, { childList: true, characterData: true, subtree: true });
                 }
             }
         });
@@ -619,7 +782,7 @@ $(document).ready(function() {
             speak('새 게임을 시작합니다!');
         } else {
             initBoard();
-            $('#ai-message').text('새 게임을 시작합니다!');
+            updateAiMessage('새 게임을 시작합니다!');
             speak('새 게임을 시작합니다!');
             if (typeof startNudgeTimer === 'function') {
                 startNudgeTimer();
@@ -656,5 +819,42 @@ $(document).ready(function() {
     });
     
     $('.close').on('click', () => $('#history-modal').hide());
+    
+    // 화면 크기 변경 시 레이아웃 조정
+    $(window).on('resize', function() {
+        if ($('#game-container').is(':visible')) {
+            setTimeout(adjustLandscapeLayout, 100);
+        }
+    });
+    
+    // 초기 레이아웃 조정 (게임 컨테이너가 표시될 때)
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                const gameContainer = $('#game-container');
+                if (gameContainer.is(':visible')) {
+                    setTimeout(adjustLandscapeLayout, 100);
+                }
+            }
+        });
+    });
+    
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) {
+        observer.observe(gameContainer, { attributes: true, attributeFilter: ['style'] });
+    }
+    
+    // 게임 컨테이너가 표시될 때 즉시 실행
+    const checkAndAdjust = setInterval(function() {
+        if ($('#game-container').is(':visible')) {
+            adjustLandscapeLayout();
+            clearInterval(checkAndAdjust);
+        }
+    }, 100);
+    
+    // 5초 후에도 실행되지 않으면 정리
+    setTimeout(function() {
+        clearInterval(checkAndAdjust);
+    }, 5000);
 });
 
