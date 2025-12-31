@@ -63,7 +63,7 @@ cp src/main/resources/application-local.yml.example src/main/resources/applicati
 ```yaml
 spring:
   datasource:
-    url: jdbc:mariadb://your-host:3306/games
+    url: jdbc:mariadb://your-host:3306/your-database-schema
     username: your-username
     password: your-password
 
