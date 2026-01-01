@@ -38,6 +38,10 @@ function connectWebSocket(roomIdParam) {
         });
     }, function(error) {
         console.error('WebSocket connection error:', error);
+        // WebSocket 연결 오류 시 방 정리 요청 (호스트인 경우만)
+        if (isHost && roomId && userId) {
+            cleanupRoomOnError();
+        }
     });
 }
 
@@ -681,4 +685,33 @@ function joinRoom(targetRoomId) {
         }
     });
 }
+
+// 오류 발생 시 방 정리 함수
+function cleanupRoomOnError() {
+    if (!roomId || !userId) return;
+    
+    // 호스트인 경우에만 방 삭제
+    if (isHost) {
+        $.ajax({
+            url: '/api/rooms/' + roomId,
+            method: 'DELETE',
+            contentType: 'application/json',
+            data: JSON.stringify({ hostId: userId }),
+            success: function() {
+                console.log('Room cleaned up due to error');
+            },
+            error: function(xhr) {
+                console.error('Failed to cleanup room:', xhr);
+            }
+        });
+    }
+}
+
+// 페이지 이탈 시 WebSocket 연결 종료 (서버에서 자동으로 방 정리 처리됨)
+$(window).on('beforeunload', function() {
+    // WebSocket 연결 종료 (서버의 WebSocketEventListener가 handleUserDisconnect 호출)
+    if (stompClient && stompClient.connected) {
+        stompClient.disconnect();
+    }
+});
 

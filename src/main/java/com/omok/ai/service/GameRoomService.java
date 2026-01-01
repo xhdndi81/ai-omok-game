@@ -78,17 +78,29 @@ public class GameRoomService {
 
             if (room.getStatus() == GameRoom.RoomStatus.PLAYING) {
                 processDisconnectWin(room, isHost);
+                // processDisconnectWin 후 방 상태를 다시 확인
+                GameRoom updatedRoom = gameRoomRepository.findById(room.getId())
+                        .orElse(null);
+                if (updatedRoom != null && updatedRoom.getStatus() == GameRoom.RoomStatus.FINISHED) {
+                    // 게스트가 null이면 (게스트가 나간 경우) 방 삭제
+                    // 호스트가 나간 경우는 게스트가 남아있을 수 있으므로 삭제하지 않음
+                    if (updatedRoom.getGuest() == null) {
+                        deleteRoom(room.getId());
+                    }
+                }
             } else if (room.getStatus() == GameRoom.RoomStatus.WAITING) {
                 if (isHost) {
-                    room.setStatus(GameRoom.RoomStatus.FINISHED);
-                    gameRoomRepository.save(room);
-                    log.info("Waiting room {} closed because host {} disconnected", room.getId(), userId);
+                    // WAITING 상태 방에서 호스트가 나가면 즉시 방 삭제
+                    deleteRoom(room.getId());
+                    log.info("Waiting room {} deleted because host {} disconnected", room.getId(), userId);
                 }
             } else if (room.getStatus() == GameRoom.RoomStatus.FINISHED) {
                 if (isGuest) {
                     room.setGuest(null);
                     gameRoomRepository.save(room);
                     log.info("Guest {} left finished room {}", userId, room.getId());
+                    // 게스트가 나간 후 호스트도 없으면 방 삭제
+                    // (실제로는 호스트가 먼저 나갔을 수 있으므로 확인 필요)
                 } else if (isHost) {
                     // 방장이 종료된 방에서 나가는 경우
                     log.info("Host {} left finished room {}", userId, room.getId());
@@ -98,6 +110,9 @@ public class GameRoomService {
                         notification.put("status", "FINISHED");
                         notification.put("message", "방장이 나갔습니다. 방이 닫힙니다.");
                         messagingTemplate.convertAndSend("/topic/game/" + room.getId(), notification);
+                    } else {
+                        // 게스트도 없으면 방 삭제
+                        deleteRoom(room.getId());
                     }
                 }
             }
@@ -436,6 +451,40 @@ public class GameRoomService {
         
         log.info("Voice message created for room {}: {}", roomId, message);
         return voiceState;
+    }
+
+    @Transactional
+    public void deleteRoom(Long roomId) {
+        GameRoom room = gameRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+        
+        // OmokGameData 삭제
+        omokGameDataRepository.findByRoom(room).ifPresent(omokGameDataRepository::delete);
+        
+        // GameRoom 삭제
+        gameRoomRepository.delete(room);
+        log.info("Room {} deleted", roomId);
+    }
+
+    @Transactional
+    public void deleteRoomByHost(Long roomId, Long hostId) {
+        GameRoom room = gameRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found"));
+        
+        // 방 소유자 확인
+        if (!room.getHost().getId().equals(hostId)) {
+            throw new IllegalStateException("Only room host can delete the room");
+        }
+        
+        deleteRoom(roomId);
+    }
+
+    public List<GameRoom> findRoomsByStatusAndCreatedAtBefore(GameRoom.RoomStatus status, LocalDateTime dateTime) {
+        return gameRoomRepository.findByStatusAndCreatedAtBefore(status, dateTime);
+    }
+
+    public List<GameRoom> findRoomsByStatusAndStartedAtBefore(GameRoom.RoomStatus status, LocalDateTime dateTime) {
+        return gameRoomRepository.findByStatusAndStartedAtBefore(status, dateTime);
     }
 }
 

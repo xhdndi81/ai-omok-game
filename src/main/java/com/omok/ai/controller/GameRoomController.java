@@ -44,7 +44,7 @@ public class GameRoomController {
             @PathVariable Long roomId,
             @RequestBody Map<String, Long> request) {
         Long guestId = request.get("guestId");
-        GameRoom room = gameRoomService.joinRoom(roomId, guestId);
+        gameRoomService.joinRoom(roomId, guestId);
         GameStateDto state = gameRoomService.getGameState(roomId);
         return ResponseEntity.ok(state);
     }
@@ -52,6 +52,15 @@ public class GameRoomController {
     @GetMapping("/{roomId}/state")
     public ResponseEntity<GameStateDto> getGameState(@PathVariable Long roomId) {
         return ResponseEntity.ok(gameRoomService.getGameState(roomId));
+    }
+
+    @DeleteMapping("/{roomId}")
+    public ResponseEntity<Void> deleteRoom(
+            @PathVariable Long roomId,
+            @RequestBody Map<String, Long> request) {
+        Long hostId = request.get("hostId");
+        gameRoomService.deleteRoomByHost(roomId, hostId);
+        return ResponseEntity.noContent().build();
     }
 }
 
