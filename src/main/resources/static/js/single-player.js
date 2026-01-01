@@ -92,45 +92,73 @@ function makeAIMove() {
         currentTurn = 'b';
         updateStatus();
 
-        // 3. 서버에는 '멘트'만 요청 (비동기)
-        if (typeof isUpdatingAiMessage !== 'undefined') {
-            isUpdatingAiMessage = true;
+        // 3. 서버에는 '멘트'만 요청 (빈도 조절)
+        // 중요한 수인지 확인 (첫 6수는 제외)
+        let isImportantMove = false;
+        if (movesCount >= 6) {
+            try {
+                isImportantMove = typeof checkImportantMove === 'function' && checkImportantMove(row, col, 2);
+            } catch (e) {
+                console.error('checkImportantMove 오류:', e);
+                isImportantMove = false;
+            }
         }
         
-        const boardStateJson = boardToJson(board, currentTurn);
-        $.ajax({
-            url: '/api/ai/move',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                boardState: boardStateJson,
-                turn: 'w', // AI가 둔 수에 대한 멘트를 위해 'w' 전달
-                userName: userName,
-                difficulty: currentDifficulty,
-                move: row + "," + col // AI가 둔 수를 알려줌
-            }),
-            success: function(response) {
-                if (response.comment) {
-                    if (typeof updateAiMessage === 'function') {
-                        updateAiMessage(response.comment, true); // 강제 업데이트
-                    } else {
-                        $('#ai-message').text(response.comment);
-                    }
-                    speak(response.comment);
-                }
-                if (typeof isUpdatingAiMessage !== 'undefined') {
-                    isUpdatingAiMessage = false;
-                }
-                if (!isGameOver) startNudgeTimer();
-            },
-            error: function() {
-                console.error('AI comment request failed');
-                if (typeof isUpdatingAiMessage !== 'undefined') {
-                    isUpdatingAiMessage = false;
-                }
-                if (!isGameOver) startNudgeTimer();
+        // AI 수 후 응답 확률 (20%)
+        const AI_MOVE_PROB = (typeof AI_MOVE_COMMENT_PROBABILITY !== 'undefined' ? AI_MOVE_COMMENT_PROBABILITY : 0.2);
+        const randomValue = Math.random();
+        const isRandomMove = randomValue < AI_MOVE_PROB;
+        
+        // 중요한 수이거나, 랜덤 확률로만 AI 응답 요청
+        const shouldRequestComment = isImportantMove || isRandomMove;
+        
+        console.log(`[AI 수 응답 체크] 총수 ${movesCount}: 중요=${isImportantMove}, 랜덤=${isRandomMove} (${randomValue.toFixed(3)} < ${AI_MOVE_PROB}), 응답=${shouldRequestComment}`);
+        
+        if (shouldRequestComment) {
+            console.log(`[AI 수 응답 실행] 총수 ${movesCount}에 대해 AI 응답 요청`);
+            if (typeof isUpdatingAiMessage !== 'undefined') {
+                isUpdatingAiMessage = true;
             }
-        });
+            
+            const boardStateJson = boardToJson(board, currentTurn);
+            $.ajax({
+                url: '/api/ai/move',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    boardState: boardStateJson,
+                    turn: 'w', // AI가 둔 수에 대한 멘트를 위해 'w' 전달
+                    userName: userName,
+                    difficulty: currentDifficulty,
+                    move: row + "," + col // AI가 둔 수를 알려줌
+                }),
+                success: function(response) {
+                    if (response.comment) {
+                        if (typeof updateAiMessage === 'function') {
+                            updateAiMessage(response.comment, true); // 강제 업데이트
+                        } else {
+                            $('#ai-message').text(response.comment);
+                        }
+                        speak(response.comment);
+                    }
+                    if (typeof isUpdatingAiMessage !== 'undefined') {
+                        isUpdatingAiMessage = false;
+                    }
+                    if (!isGameOver) startNudgeTimer();
+                },
+                error: function() {
+                    console.error('AI comment request failed');
+                    if (typeof isUpdatingAiMessage !== 'undefined') {
+                        isUpdatingAiMessage = false;
+                    }
+                    if (!isGameOver) startNudgeTimer();
+                }
+            });
+        } else {
+            console.log(`[AI 수 응답 스킵] 총수 ${movesCount}는 응답하지 않음 (간격=${isRandomMove}, 중요=${isImportantMove})`);
+            // AI 응답을 요청하지 않아도 재촉 타이머는 시작
+            if (!isGameOver) startNudgeTimer();
+        }
     }
 }
 

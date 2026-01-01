@@ -527,7 +527,29 @@ function loadWaitingRooms() {
                             </div>
                         </div>
                     `);
-                    roomElement.on('click', () => joinRoom(room.id));
+                    roomElement.on('click', function() {
+                        // 전체 화면 요청 (사용자 클릭 이벤트 내에서 직접 호출)
+                        try {
+                            const docEl = document.documentElement;
+                            if (docEl.requestFullscreen) {
+                                const promise = docEl.requestFullscreen();
+                                if (promise && promise.catch) {
+                                    promise.catch(err => {
+                                        console.error('전체 화면 요청 실패:', err);
+                                    });
+                                }
+                            } else if (docEl.webkitRequestFullscreen) {
+                                docEl.webkitRequestFullscreen();
+                            } else if (docEl.mozRequestFullScreen) {
+                                docEl.mozRequestFullScreen();
+                            } else if (docEl.msRequestFullscreen) {
+                                docEl.msRequestFullscreen();
+                            }
+                        } catch (err) {
+                            console.error('전체 화면 요청 중 오류:', err);
+                        }
+                        joinRoom(room.id);
+                    });
                     roomsList.append(roomElement);
                 });
             }
@@ -563,8 +585,7 @@ function createRoom() {
                     myColor = 'b'; // 방장은 흑색
                     opponentName = '상대방';
                     
-                    const docEl = document.documentElement;
-                    if (docEl.requestFullscreen) docEl.requestFullscreen();
+                    // 전체 화면은 버튼 클릭 핸들러에서 이미 요청됨
                     
                     $('#waiting-rooms-container').hide();
                     $('#login-container').hide();
@@ -621,8 +642,7 @@ function joinRoom(targetRoomId) {
                     myColor = 'w'; // 참여자는 백색
                     opponentName = gameState.hostName || '상대방';
                     
-                    const docEl = document.documentElement;
-                    if (docEl.requestFullscreen) docEl.requestFullscreen();
+                    // 전체 화면은 버튼 클릭 핸들러에서 이미 요청됨
                     
                     $('#waiting-rooms-container').hide();
                     $('#login-container').hide();

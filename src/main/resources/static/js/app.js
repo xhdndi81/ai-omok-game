@@ -20,9 +20,44 @@ let lastSentBoardState = null;
 // 싱글플레이어 관련 변수 (single-player.js에서 사용)
 let currentDifficulty = 1; // 0: 쉬움, 1: 보통, 2: 어려움, 3: 마스터
 
+// AI 응답 빈도 조절 변수
+let aiCommentCounter = 0; // AI 응답 호출 카운터
+const AI_COMMENT_INTERVAL = 5; // 5수마다 한 번씩 AI 응답 (사용자 수 기준) - 더 적게 응답
+const AI_MOVE_COMMENT_PROBABILITY = 0.2; // AI 수 후 응답 확률 (20%) - 더 적게 응답
+
 // 음성 출력 관리 변수
 let lastSpokenText = "";
 let lastSpokenTime = 0;
+
+// 전체 화면 요청 함수 (브라우저 호환성 고려)
+function requestFullscreen() {
+    const docEl = document.documentElement;
+    
+    // 이미 전체 화면 모드인지 확인
+    if (document.fullscreenElement || document.webkitFullscreenElement || 
+        document.mozFullScreenElement || document.msFullscreenElement) {
+        console.log('이미 전체 화면 모드입니다.');
+        return;
+    }
+    
+    try {
+        if (docEl.requestFullscreen) {
+            docEl.requestFullscreen().catch(err => {
+                console.error('전체 화면 요청 실패:', err);
+            });
+        } else if (docEl.webkitRequestFullscreen) { // Safari
+            docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) { // Firefox
+            docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) { // IE/Edge
+            docEl.msRequestFullscreen();
+        } else {
+            console.warn('전체 화면 API를 지원하지 않는 브라우저입니다.');
+        }
+    } catch (err) {
+        console.error('전체 화면 요청 중 오류 발생:', err);
+    }
+}
 
 // 음성 출력 함수
 function speak(text) {
@@ -80,6 +115,49 @@ function createEmptyBoard() {
     return board;
 }
 
+// 중요한 수인지 확인 (3목, 4목 등)
+function checkImportantMove(row, col, player) {
+    if (!board || !board[row] || board[row][col] !== player) {
+        return false; // 보드 상태가 올바르지 않으면 false
+    }
+    
+    const directions = [
+        [0, 1],   // 가로
+        [1, 0],   // 세로
+        [1, 1],   // 대각선 \
+        [1, -1]   // 대각선 /
+    ];
+    
+    for (let dir of directions) {
+        let count = 1; // 현재 위치 포함
+        
+        // 정방향
+        for (let i = 1; i < 5; i++) {
+            const newRow = row + dir[0] * i;
+            const newCol = col + dir[1] * i;
+            if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+            if (board[newRow][newCol] !== player) break;
+            count++;
+        }
+        
+        // 역방향
+        for (let i = 1; i < 5; i++) {
+            const newRow = row - dir[0] * i;
+            const newCol = col - dir[1] * i;
+            if (newRow < 0 || newRow >= 15 || newCol < 0 || newCol >= 15) break;
+            if (board[newRow][newCol] !== player) break;
+            count++;
+        }
+        
+        // 3목 이상이면 중요한 수로 간주
+        if (count >= 3) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 // 오목 보드 초기화
 function initBoard() {
     board = createEmptyBoard();
@@ -87,6 +165,7 @@ function initBoard() {
     isGameOver = false;
     winner = null;
     movesCount = 0;
+    aiCommentCounter = 0; // AI 응답 카운터 초기화
     
     const boardElement = $('#omok-board');
     boardElement.empty();
@@ -153,36 +232,69 @@ function handleCellClick(row, col) {
         return;
     }
     
-    // 사용자가 수를 둔 후 AI 피드백 요청
-    isUpdatingAiMessage = true;
-    const boardStateJson = boardToJson(board, currentTurn);
-    $.ajax({
-        url: '/api/ai/comment?situation=player_move',
-        method: 'POST',
-        contentType: 'application/json',
-        data: JSON.stringify({
-            boardState: boardStateJson,
-            turn: currentTurn,
-            userName: userName,
-            difficulty: currentDifficulty
-        }),
-        success: function(response) {
-            if (response.comment) {
-                if (typeof updateAiMessage === 'function') {
-                    updateAiMessage(response.comment, true); // 강제 업데이트
-                } else {
-                    $('#ai-message').text(response.comment);
-                }
-                speak(response.comment);
-            }
-            isUpdatingAiMessage = false;
-        },
-        error: function() {
-            // 실패 시에도 플래그 해제
-            isUpdatingAiMessage = false;
-            // 실패 시 기본 메시지는 표시하지 않음 (AI API만 사용)
+    // 사용자가 수를 둔 후 AI 피드백 요청 (빈도 조절)
+    aiCommentCounter++;
+    
+    // AI_COMMENT_INTERVAL이 정의되지 않은 경우 기본값 사용
+    const COMMENT_INTERVAL = (typeof AI_COMMENT_INTERVAL !== 'undefined' && AI_COMMENT_INTERVAL > 0) ? AI_COMMENT_INTERVAL : 4;
+    
+    // 일정 간격마다만 AI 응답 요청 (4수마다 한 번, 즉 4, 8, 12번째 수에만)
+    const remainder = aiCommentCounter % COMMENT_INTERVAL;
+    const isIntervalMove = (remainder === 0);
+    
+    // 중요한 수인지 확인 (3목 이상) - 보드에 수를 둔 후이므로 확인 가능
+    // 단, 첫 6수는 제외 (너무 일찍 중요한 수 판단 방지)
+    let isImportantMove = false;
+    if (movesCount >= 6) {
+        try {
+            isImportantMove = checkImportantMove(row, col, player);
+        } catch (e) {
+            console.error('checkImportantMove 오류:', e);
+            isImportantMove = false;
         }
-    });
+    }
+    
+    // 중요한 수이거나, 일정 간격일 때만 AI 응답 요청
+    const shouldRequestComment = Boolean(isImportantMove) || Boolean(isIntervalMove);
+    
+    // 디버깅용 로그 (항상 출력)
+    console.log(`[AI 응답 체크] 수 ${aiCommentCounter}, 총수 ${movesCount}: 중요=${isImportantMove}, 간격=${isIntervalMove} (${aiCommentCounter} % ${COMMENT_INTERVAL} = ${remainder}), 응답=${shouldRequestComment}`);
+    
+    // 조건이 명확하게 true일 때만 AI 응답 요청
+    if (shouldRequestComment === true) {
+        console.log(`[AI 응답 실행] 수 ${aiCommentCounter}에 대해 AI 응답 요청`);
+        isUpdatingAiMessage = true;
+        const boardStateJson = boardToJson(board, currentTurn);
+        $.ajax({
+            url: '/api/ai/comment?situation=player_move',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                boardState: boardStateJson,
+                turn: currentTurn,
+                userName: userName,
+                difficulty: currentDifficulty
+            }),
+            success: function(response) {
+                if (response.comment) {
+                    if (typeof updateAiMessage === 'function') {
+                        updateAiMessage(response.comment, true); // 강제 업데이트
+                    } else {
+                        $('#ai-message').text(response.comment);
+                    }
+                    speak(response.comment);
+                }
+                isUpdatingAiMessage = false;
+            },
+            error: function() {
+                // 실패 시에도 플래그 해제
+                isUpdatingAiMessage = false;
+                // 실패 시 기본 메시지는 표시하지 않음 (AI API만 사용)
+            }
+        });
+    } else {
+        console.log(`[AI 응답 스킵] 수 ${aiCommentCounter}는 응답하지 않음 (간격=${isIntervalMove}, 중요=${isImportantMove})`);
+    }
     
     // 차례 변경 후 AI 수 두기
     currentTurn = currentTurn === 'b' ? 'w' : 'b';
@@ -607,8 +719,28 @@ $(document).ready(function() {
         localStorage.setItem('omok_username', name);
         localStorage.setItem('omok_difficulty', currentDifficulty);
 
-        const docEl = document.documentElement;
-        if (docEl.requestFullscreen) docEl.requestFullscreen();
+        // 전체 화면 요청 (사용자 클릭 이벤트 내에서 직접 호출)
+        // 전체 화면 API는 사용자 제스처와 직접 연결되어야 하므로 여기서 호출
+        try {
+            const docEl = document.documentElement;
+            if (docEl.requestFullscreen) {
+                const promise = docEl.requestFullscreen();
+                if (promise && promise.catch) {
+                    promise.catch(err => {
+                        console.error('전체 화면 요청 실패:', err);
+                        // 전체 화면 실패 시에도 게임은 계속 진행
+                    });
+                }
+            } else if (docEl.webkitRequestFullscreen) {
+                docEl.webkitRequestFullscreen();
+            } else if (docEl.mozRequestFullScreen) {
+                docEl.mozRequestFullScreen();
+            } else if (docEl.msRequestFullscreen) {
+                docEl.msRequestFullscreen();
+            }
+        } catch (err) {
+            console.error('전체 화면 요청 중 오류:', err);
+        }
 
         $.ajax({
             url: '/api/login',
@@ -689,6 +821,28 @@ $(document).ready(function() {
     
     $(document).on('click', '#btn-create-new-room', function() {
         if (!userId) { alert('먼저 이름을 입력하고 같이하기를 선택해주세요.'); return; }
+        
+        // 전체 화면 요청 (사용자 클릭 이벤트 내에서 직접 호출)
+        try {
+            const docEl = document.documentElement;
+            if (docEl.requestFullscreen) {
+                const promise = docEl.requestFullscreen();
+                if (promise && promise.catch) {
+                    promise.catch(err => {
+                        console.error('전체 화면 요청 실패:', err);
+                    });
+                }
+            } else if (docEl.webkitRequestFullscreen) {
+                docEl.webkitRequestFullscreen();
+            } else if (docEl.mozRequestFullScreen) {
+                docEl.mozRequestFullScreen();
+            } else if (docEl.msRequestFullscreen) {
+                docEl.msRequestFullscreen();
+            }
+        } catch (err) {
+            console.error('전체 화면 요청 중 오류:', err);
+        }
+        
         createRoom();
     });
 
@@ -752,6 +906,7 @@ $(document).ready(function() {
         isGameOver = false;
         winner = null;
         movesCount = 0;
+        aiCommentCounter = 0; // AI 응답 카운터 초기화
         if (typeof lastSentBoardState !== 'undefined') lastSentBoardState = null;
         $('#btn-new-game').hide();
         
