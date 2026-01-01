@@ -71,6 +71,35 @@ button:active {
     padding-top: 20px;
 }
 
+/* Portal Link Button */
+.portal-link {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border-radius: 10px;
+    border: 2px solid #4a90e2;
+    background: #e3f2fd;
+    color: #1976d2;
+    text-decoration: none;
+    font-family: 'Nanum Gothic', sans-serif;
+    font-weight: bold;
+    transition: all 0.2s;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
+}
+
+.portal-link:hover {
+    background: #4a90e2;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(74, 144, 226, 0.3);
+}
+
+.portal-link:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
+}
+
 /* ========================================
    게임 컨테이너 - 세로 모드 (기본)
    ======================================== */
